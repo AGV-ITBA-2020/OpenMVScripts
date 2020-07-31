@@ -1,4 +1,4 @@
-# Hello World Example
+ # Hello World Example
 #
 # Welcome to the OpenMV IDE! Click on the green run arrow button below to run the script!
 

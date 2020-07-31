@@ -7,9 +7,9 @@ import sensor, image, time, math, omv
 
 sensor.reset()
 sensor.set_pixformat(sensor.GRAYSCALE)
-sensor.set_framesize(sensor.QVGA) # we run out of memory if the resolution is much bigger...
+sensor.set_framesize(sensor.QQVGA) # we run out of memory if the resolution is much bigger...
 # AprilTags works on a maximum of < 64K pixels.
-sensor.set_windowing((320, 160))
+#sensor.set_windowing((320, 160))
 sensor.skip_frames(time = 2000)
 sensor.set_auto_gain(False)  # must turn this off to prevent image washout...
 sensor.set_auto_whitebal(True)  # must turn this off to prevent image washout...
@@ -36,7 +36,8 @@ def family_name(tag):
 while(True):
     clock.tick()
     img = sensor.snapshot()
-    img_for_tags=img.copy(xscale=2.0,yscale=2.0)
+    #img_for_tags=img.copy(xscale=2.0,yscale=2.0)
+    img_for_tags=img;
     for tag in img_for_tags.find_apriltags(families=tag_families): # defaults to TAG36H11 without "families".
         img_for_tags.draw_rectangle(tag.rect(), color = 127)
         img_for_tags.draw_cross(tag.cx(), tag.cy(), color = 127)

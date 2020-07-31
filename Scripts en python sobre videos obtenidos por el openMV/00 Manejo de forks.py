@@ -70,6 +70,6 @@ for i in range(len(orig_frames)):
 for i in range(len(orig_frames)):
     concat=cv2.hconcat([np.asarray(orig_frames[i]), np.asarray(proc_frames[i])])
     cv2.imshow('Frame',concat)
-    cv2.waitKey(33)
+    cv2.waitKey(333)
 cap.release()
 cv2.destroyAllWindows()
