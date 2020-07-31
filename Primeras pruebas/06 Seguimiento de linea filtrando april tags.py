@@ -1,4 +1,4 @@
-# Untitled - By: Javier - Thu Jul 30 2020
+# Filtra con filtros de mediana para evitar tomar los puntos negros de los apriltags
 import ulab as np
 import sensor, image, time, pyb
 from ulab import numerical
@@ -60,32 +60,39 @@ def compute_simple_error(first_row,case):
 
 
 while(True):
+    tags_found=0;
     clock.tick()
     img = sensor.snapshot() #Obtengo la memoria
 
-    first_row = np.zeros(sensor.width(), dtype=np.uint8) #Aloco memoria para procesar
-    for i in range(sensor.width()): #Obtengo la primer fila binarizada
-        first_row[i]=img.get_pixel(i,sensor.height()-1) #Obtengo la primer fila y aplico el threshold (Se podría hacer con la función binary
-        if first_row[i] > TH:
-            first_row[i] = 0
-        else:
-            first_row[i] = 255
-
-    d,lines_found = compute_simple_error(first_row,"ForkL") #Aplico el algoritmo para obtener el error y cantidad de lineas encontradas
-
     tags = img.find_apriltags(families=tag_families) #Busco tags
-    tags_found=0;
     if tags:
         tags_found=1;
         green_led.on() #Prendo led si hay tag a la vista
-        for tag in tags: # defaults to TAG36H11 without "families".
-            img.draw_rectangle(tag.rect(), color = 127)
-            img.draw_cross(tag.cx(), tag.cy(), color = 127)
-            #print_args = (family_name(tag), tag.id(), (180 * tag.rotation()) / math.pi)
-            #print("Tag Family %s, Tag ID %d, rotation %f (degrees)" % print_args)
+
     else:
         green_led.off()
-    img.binary([(TH,255)],invert=True)#Muestro lo que ve en binario la cámara
+
+    img.median(2, percentile=1) #Filtros de mediana para eliminar ruido y los apriltags de las mediciones.
+    img.median(1, percentile=1) #Reemplazan cada pixel por el pixel más "blanco de su alrededor.
+    img.median(1, percentile=1)
+
+    img.binary([(TH,255)],invert=True)#Binarizo la imagen: 255 si pertenece a la línea 0 si no.
+    img.dilate(2) #Dilato por si el camino se cortó
+
+    first_row = np.zeros(sensor.width(), dtype=np.uint8) #Aloco memoria para procesar
+    for i in range(sensor.width()): #Obtengo la primer fila binarizada
+        first_row[i]=img.get_pixel(i,sensor.height()-1) #Obtengo la primer fila
+
+    d,lines_found = compute_simple_error(first_row,"ForkL") #Aplico el algoritmo para obtener el error y cantidad de lineas encontradas
+
+
+
+
+
+
+    for tag in tags: # defaults to TAG36H11 without "families".
+        img.draw_rectangle(tag.rect(), color = 127)
+        img.draw_cross(tag.cx(), tag.cy(), color = 127)
     print_args = (clock.fps(), tags_found, d,lines_found)
     print("FPS: %d, Tag Found: %d, ErrorMeas: %d (pixels), Lines found: %d " % print_args)
     #print(clock.fps())
