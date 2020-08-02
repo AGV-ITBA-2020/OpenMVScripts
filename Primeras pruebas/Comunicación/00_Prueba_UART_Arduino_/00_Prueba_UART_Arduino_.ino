@@ -1,7 +1,7 @@
 
 void setup() {
   // initialize both serial ports:
-  Serial.begin(38400);
+  Serial.begin(115200);
   Serial1.begin(38400);
 }
 
@@ -10,5 +10,6 @@ void loop() {
   String openMV_msg;
   openMV_msg=Serial1.readString();
   Serial.print(openMV_msg);
+  //Serial1.print("abc!");
   Serial1.print("abc!");
 }
