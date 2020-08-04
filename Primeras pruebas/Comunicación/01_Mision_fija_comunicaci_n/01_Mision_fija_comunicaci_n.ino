@@ -19,6 +19,7 @@ ArduinoQueue<int> Mission(20); //Máximo 20 pasos de misiones
 void answer(openMV_msg msg);
 int curr_mission_step;
 void send_openMV_next_state(int urr_mision_step);
+void print_openmv_msg(openMV_msg msg);
 
 void setup() {
   // initialize both serial ports:
@@ -30,8 +31,8 @@ void setup() {
   while(!Serial1.available());
   openMV_msg=Serial1.read(); //Espero que se inicialice el openmv
   Serial1.write(OPENMV_FOLLOW_LINE);
-  Serial.print(openMV_msg);
-  Serial.print("Connected");
+  Serial.println(openMV_msg);
+  Serial.println("Connected");
   
   Mission.enqueue(MISSION_SLOW_DOWN);  //La mision que le hardcodeamos.
   Mission.enqueue(MISSION_FORK_LEFT);
@@ -47,22 +48,42 @@ void loop() {
   if(Serial1.available())
   {
     byte openMV_msg_buff[OPEN_MV_MSG_LEN];
-    Serial1.readBytes(openMV_msg_buff, OPEN_MV_MSG_LEN); //Esto estaría bueno en la CIAA implementar una interrupción cuando recibe 2 mensajes.
+    openMV_msg_buff[0] = Serial1.read(); //Esto estaría bueno en la CIAA implementar una interrupción cuando recibe 2 mensajes.
+    while(!Serial1.available());
+    openMV_msg_buff[1] = Serial1.read();
     openMV_msg msg = decode_openMV_msg(openMV_msg_buff);
-    Serial.print("Desplazamiento");
-    Serial.println(msg.displacement);
+    //Serial.print(openMV_msg_buff[0],BIN); //Vista ultra Raw de los mensajes.
+    //Serial.print(openMV_msg_buff[1],BIN); //Vista ultra Raw de los mensajes.
+    //Serial.println(openMV_msg_buff[0],openMV_msg_buff[1]); //Vista Raw de los mensajes.
+    print_openmv_msg(msg);
+    //Serial.print("Desplazamiento");
+    //Serial.println(msg.displacement);
     analogWrite(ON_BOARD_LED_PIN,int(abs(msg.displacement)*255/MAX_DISPLACEMENT));
     //answer(msg);
   }
 }
 
+void print_openmv_msg(openMV_msg msg)
+{ 
+  Serial.print("Desplazamiento :");
+  Serial.print(msg.displacement);
+  Serial.print(", err :");
+  Serial.print(msg.error);
+  Serial.print(",form passed:");
+  Serial.print(msg.form_passed);
+  Serial.print(", tag found :");
+  Serial.print(msg.tag_found);
+  Serial.print(", tag :");
+  Serial.println(msg.tag);
+}
+
 openMV_msg decode_openMV_msg(byte *openMV_msg_buff)
 {
   openMV_msg retVal;
-  retVal.displacement=int(openMV_msg_buff[0]);
-  retVal.error= ((openMV_msg_buff[1] & 1<<7)==0);
-  retVal.form_passed= ((openMV_msg_buff[1] & 1<<6)==0);
-  retVal.tag_found= ((openMV_msg_buff[1] & 1<<5)==0);
+  retVal.displacement=int(char(openMV_msg_buff[0]));
+  retVal.error= (openMV_msg_buff[1] /128)%2;
+  retVal.form_passed= (openMV_msg_buff[1]/64)%2;
+  retVal.tag_found= (openMV_msg_buff[1]/32)%2;
   unsigned int tag_nmbr=openMV_msg_buff[1]%32;
   if (tag_nmbr == 1)
     retVal.tag = "Slow down tag";

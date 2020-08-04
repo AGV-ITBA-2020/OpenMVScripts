@@ -12,3 +12,4 @@ while(True):
     time.sleep(500)
     if (uart.any()):
         print(uart.readline())
+    time.sleep(500)
