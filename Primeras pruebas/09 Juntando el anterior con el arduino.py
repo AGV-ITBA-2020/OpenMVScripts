@@ -9,15 +9,14 @@ uart = UART(1, 38400,timeout=10000) ##UART que se utiliza con el baudrate dado y
 msg_buf=np.zeros(sensor.width(), dtype=np.int8) #Buffer en el que se guardan los msjs enviados por el openMV
 state_to_n = {"Line follower":0,"Fork left":1,"Fork right":2,"Merge":3,"Error":4, "Idle":5 } #Estados del openMV y su mapeo a números, útil para las comunicaciones
 n_to_state= {0:"Line follower",1:"Fork left",2:"Fork right",3:"Merge",4:"Error", 5:"Idle"}
-state="Fork left"
 tag_families = 0 | image.TAG36H11 # Familia de tags a identificar
 red_led=pyb.LED(1); # Led usado para checkar funcionamiento en tiempo real
 green_led=pyb.LED(2); # Led usado para mostrar que se ve el tag
 clock = time.clock()
 
 '''########################  Parámetros calibrables ###########################'''
-Th=80 ##Threshold
-hist_len=10 #Cantidad de muestras a promediar para saber si se pasó una unión
+Th=60 ##Threshold
+hist_len=6 #Cantidad de muestras a promediar para saber si se pasó una unión
 
 '''########################  Parámetros calibrables ###########################'''
 class fork_merge_logic: ##Clase para manejar la lógica si pasó por un camino o no
@@ -63,19 +62,17 @@ def compute_simple_error(first_row):
 
     ##Busco los bordes de las líneas encontradas. Siempre van a a ser una cantidad par!
     for i in range(len(first_row)): #Busco los extremos de la imagen viendo cuando cambia de color
-        if(prev==0 and first_row[i]==255) or (prev==255 and first_row[i]==0): #Si en el pixel anterior no había línea y en el siguiente si, hay borde. También el caso inverso
+        if(prev==0 and first_row[i]==255) or (prev==255 and first_row[i]==0) or ((i==len(first_row)-1 and first_row[i]==255)) : #Si en el pixel anterior no había línea y en el siguiente si, hay borde. También el caso inverso
             line_borders.append(i)
         prev=first_row[i]
     if (first_row[len(first_row)-1]==255 and  first_row[len(first_row)-2]==0) : #Para el caso de un punto blanco en la esquina, se ignora.
         line_borders.pop()
-
 
     if line_borders: #Si hay líneas
         line_centers=[]
         for i in range(int(len(line_borders)/2)): #Calculo los centros de las líneas a partir de los bordes
             line_centers.append((line_borders[i*2]+line_borders[i*2])/2)
         lines_found = len(line_centers)
-        print(line_centers)
         ##Aquí se podría agregar un código para encontrar errores: + de 2 líneas, 2 lineas en modo normal, etc.
         if state=="Line follower":
             d = center_pixel - get_closer_line_center(line_centers,center_pixel) ##Porlas si hay error
@@ -98,7 +95,7 @@ def find_tags():
     tag_found=False;
     if tags:
         tag_found=True;
-        tags[0].id()
+        tag_nmbr=tags[0].id()
         green_led.on() #Prendo led si hay tag a la vista
     else:
         green_led.off()
@@ -106,9 +103,10 @@ def find_tags():
 
 #Filtra la imagen y devuelve la primer fila binarizada.
 def img_filter_and_get_first_row(img):
+    img.binary([(180,255)], invert=False, zero=True) ##Elimino reflexiones en las cintas
+
     img.median(2, percentile=1) #Filtros de mediana para eliminar ruido y los apriltags de las mediciones.
-    img.median(1, percentile=1) #Reemplazan cada pixel por el pixel "más blanco" de su alrededor.
-    img.median(1, percentile=1)
+    img.median(2, percentile=1) #Reemplazan cada pixel por el pixel "más blanco" de su alrededor.
 
     img.binary([(Th,255)],invert=True)#Binarizo la imagen: 255 si pertenece a la línea 0 si no.
     img.dilate(2) #Dilato por si el camino se cortó
@@ -126,11 +124,11 @@ sensor.set_framesize(sensor.QQVGA)
 sensor.skip_frames(time = 500)
 center_pixel = sensor.width() / 2
 
-##time.sleep(500)
-#uart.writechar(55) #Manda un byte al arduino para iniciar la comunicación.
-#b=uart.readchar()
-#state=n_to_state[int(b)] #Se espera el estado inicial.
-freq_sample=10 #Frecuencia de sampling
+time.sleep(500)
+uart.writechar(55) #Manda un byte al arduino para iniciar la comunicación.
+b=uart.readchar()
+state=n_to_state[int(b)] #Se espera el estado inicial.
+freq_sample=2 #Frecuencia de sampling
 fml = fork_merge_logic()
 fml.new_openMV_state(state) #Para la lógica de paso de uniones se comunica el estado del openMV
 
@@ -139,9 +137,10 @@ fml.new_openMV_state(state) #Para la lógica de paso de uniones se comunica el e
 start = utime.ticks_ms()
 
 while(True):
-    #if (uart.any()):
-        #state=n_to_state[int(uart.readchar())] #Se le comunica el nuevo estado
-        #print("ARDUINO SAID: New state ->",state)
+    if (uart.any()):
+        state=n_to_state[int(uart.readchar())] #Se le comunica el nuevo estado
+        fml.new_openMV_state(state)
+        print("ARDUINO SAID: New state ->",state)
     t_elapsed = utime.ticks_diff(utime.ticks_ms(), start)
     if (state != "Idle") and (t_elapsed/1000 > (1/freq_sample)): #Con una frecuencia determinada toma proceso de captura
         fork_or_merge_passed=0;
@@ -155,9 +154,10 @@ while(True):
         first_row = img_filter_and_get_first_row(img) #Obtengo la primer fila fitlrada y binarizada.
         d,lines_found,err = compute_simple_error(first_row) #Aplico el algoritmo para obtener el error y cantidad de lineas encontradas
         fml.feed(lines_found)
+        print("lines_found %d, fml state: %s" % (lines_found, fml.state))
         if fml.state=="Union passed":
             fml.clear_state()
             fork_or_merge_passed=1;
         gen_next_msg(msg_buf,d,err,tag_found,tag_nmbr,fork_or_merge_passed)
-        print_args = (clock.fps(),d,tag_found,fork_or_merge_passed, err)
-        #print("FPS: %d, D: %d, tag: %r, fomp: %r, err: %r" % print_args)
+        print_args = (clock.fps(),d,tag_found,tag_nmbr,fork_or_merge_passed, err)
+        #print("FPS: %d, D: %d, tag: %r,tag n:%d, fomp: %r, err: %r" % print_args)
