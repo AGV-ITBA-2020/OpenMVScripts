@@ -1,0 +1,2 @@
+v0: Recorre misión hardcodeada en el arduino y con la lógica para ir pasandole estados al openMV
+v0.1: generaliza la lógica para cualquier misión y permite poner una misión por serial al arduino
