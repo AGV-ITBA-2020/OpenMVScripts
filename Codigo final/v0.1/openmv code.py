@@ -5,7 +5,7 @@ import ulab as np
 from ulab import numerical
 
 '''########################  Variables universales ###########################'''
-uart = UART(1, 38400,timeout=10000) ##UART que se utiliza con el baudrate dado y un timeout (este último realmente no hace falta
+uart = UART(1, 115200,timeout=10000) ##UART que se utiliza con el baudrate dado y un timeout (este último realmente no hace falta
 msg_buf=np.zeros(sensor.width(), dtype=np.int8) #Buffer en el que se guardan los msjs enviados por el openMV
 state_to_n = {"Line follower":0,"Fork left":1,"Fork right":2,"Merge":3,"Error":4, "Idle":5 } #Estados del openMV y su mapeo a números, útil para las comunicaciones
 n_to_state= {0:"Line follower",1:"Fork left",2:"Fork right",3:"Merge",4:"Error", 5:"Idle"}
@@ -124,11 +124,8 @@ sensor.set_framesize(sensor.QQVGA)
 sensor.skip_frames(time = 2000)
 center_pixel = sensor.width() / 2
 
-time.sleep(500)
-uart.writechar(55) #Manda un byte al arduino para iniciar la comunicación.
-b=uart.readchar()
-state=n_to_state[int(b)] #Se espera el estado inicial.
-freq_sample=2 #Frecuencia de sampling
+state="Idle" #Se empieza en idle
+freq_sample=10 #Frecuencia de sampling
 fml = fork_merge_logic()
 fml.new_openMV_state(state) #Para la lógica de paso de uniones se comunica el estado del openMV
 
@@ -148,6 +145,8 @@ while(True):
         start = utime.ticks_ms()
         uart.writechar(msg_buf[0]) ##Envía el mensaje previo a la CIAA
         uart.writechar(msg_buf[1])
+        uart.writechar(0)
+        uart.writechar(0) #Mando 4 bytes de info ya que la ciaa se interrumpe con 4*n bytes obtenidos
         #print("D sent",msg_buf[0], "SecBuf Sent =",msg_buf[1])
         img = sensor.snapshot() #Obtengo la imagen
         tag_found,tag_nmbr = find_tags() #Se busca si hay algún tag

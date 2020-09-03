@@ -121,7 +121,7 @@ def img_filter_and_get_first_row(img):
 sensor.reset()
 sensor.set_pixformat(sensor.GRAYSCALE)
 sensor.set_framesize(sensor.QQVGA)
-sensor.skip_frames(time = 500)
+sensor.skip_frames(time = 2000)
 center_pixel = sensor.width() / 2
 
 time.sleep(500)
