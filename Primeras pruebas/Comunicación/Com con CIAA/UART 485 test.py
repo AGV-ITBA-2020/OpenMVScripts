@@ -12,6 +12,7 @@ n_to_state= {0:"Line follower",1:"Fork left",2:"Fork right",3:"Merge",4:"Error",
 red_led=pyb.LED(1); # Led usado para checkar funcionamiento en tiempo real
 green_led=pyb.LED(2); # Led usado para mostrar que se ve el tag
 dirPin = pyb.Pin("P2", pyb.Pin.OUT_PP)
+green_led=pyb.LED(2); # Led usado para mostrar que se ve el tag
 
 dirPin.low()
 
@@ -48,8 +49,13 @@ def sendMsg():
 
 while(True):
     if (uart.any()):
-        state=n_to_state[int(uart.readchar())] #Se le comunica el nuevo estado
-        print("CIAA SAID: New state ->",state)
+        print("CIAA SAID: New state ->",int(uart.readchar()))
+        #state=n_to_state[int(uart.readchar())] #Se le comunica el nuevo estado
+        #print("CIAA SAID: New state ->",state)
+        green_led.on()
+        pyb.delay(25)
+        green_led.off()
+        pyb.delay(25)
         sendMsg()
         #print("D sent",msg_buf[0], "SecBuf Sent =",msg_buf[1])
         img = sensor.snapshot() #Obtengo la imagen
