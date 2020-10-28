@@ -5,7 +5,7 @@ import ulab as np
 from ulab import numerical
 
 '''########################  Variables universales ###########################'''
-uart = UART(1, 115200,timeout=1000) ##UART que se utiliza con el baudrate dado y un timeout (este último realmente no hace falta
+uart = UART(1, 115200) ##UART que se utiliza con el baudrate dado y un timeout (este último realmente no hace falta
 state_to_n = {"Line follower":0,"Fork left":1,"Fork right":2,"Merge":3,"Error":4, "Idle":5 } #Estados del openMV y su mapeo a números, útil para las comunicaciones
 n_to_state= {0:"Line follower",1:"Fork left",2:"Fork right",3:"Merge",4:"Error", 5:"Idle"}
 
@@ -45,18 +45,21 @@ def sendMsg():
     uart.writechar(31)
     uart.writechar(0)
     uart.writechar(0) #Mando 4 bytes de info ya que la ciaa se interrumpe con 4*n bytes obtenidos
+    #pyb.delay(10)
     dirPin.low() #Ojo con esto, podría ir luego de un poco del procesamiento así no es bloqueante la uart
 
 while(True):
     if (uart.any()):
-        print("CIAA SAID: New state ->",int(uart.readchar()))
+        i=uart.readchar()
+        #print("CIAA SAID: New state ->",int())
         #state=n_to_state[int(uart.readchar())] #Se le comunica el nuevo estado
         #print("CIAA SAID: New state ->",state)
-        green_led.on()
-        pyb.delay(25)
-        green_led.off()
-        pyb.delay(25)
         sendMsg()
+        green_led.on()
+        pyb.delay(10)
+        green_led.off()
+        pyb.delay(10)
+
         #print("D sent",msg_buf[0], "SecBuf Sent =",msg_buf[1])
-        img = sensor.snapshot() #Obtengo la imagen
+
         #Procesa la imagen para preparar el siguiente mensaje
