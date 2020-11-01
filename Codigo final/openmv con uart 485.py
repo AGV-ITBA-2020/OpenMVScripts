@@ -3,6 +3,7 @@ import sensor, image, time, pyb, utime
 from pyb import UART
 import ulab as np
 from ulab import numerical
+import machine
 
 '''########################  Variables universales ###########################'''
 uart = UART(1, 115200,timeout=10000) ##UART que se utiliza con el baudrate dado y un timeout (este último realmente no hace falta
@@ -12,10 +13,11 @@ n_to_state= {0:"Line follower",1:"Fork left",2:"Fork right",3:"Merge",4:"Error",
 tag_families = 0 | image.TAG36H11 # Familia de tags a identificar
 red_led=pyb.LED(1); # Led usado para checkar funcionamiento en tiempo real
 green_led=pyb.LED(2); # Led usado para mostrar que se ve el tag
-
+dirPin = pyb.Pin("P2", pyb.Pin.OUT_PP)
+dirPin.low();
 
 '''########################  Parámetros calibrables ###########################'''
-Th=60 ##Threshold
+Th=80 ##Threshold
 hist_len=6 #Cantidad de muestras a promediar para saber si se pasó una unión
 
 '''########################  Parámetros calibrables ###########################'''
@@ -103,13 +105,13 @@ def find_tags():
 
 #Filtra la imagen y devuelve la primer fila binarizada.
 def img_filter_and_get_first_row(img):
-    img.binary([(180,255)], invert=False, zero=True) ##Elimino reflexiones en las cintas
+    #img.binary([(180,255)], invert=False, zero=True) ##Elimino reflexiones en las cintas
 
-    img.median(2, percentile=1) #Filtros de mediana para eliminar ruido y los apriltags de las mediciones.
-    img.median(2, percentile=1) #Reemplazan cada pixel por el pixel "más blanco" de su alrededor.
+    #img.median(2, percentile=1) #Filtros de mediana para eliminar ruido y los apriltags de las mediciones.
+    #img.median(2, percentile=1) #Reemplazan cada pixel por el pixel "más blanco" de su alrededor.
 
     img.binary([(Th,255)],invert=True)#Binarizo la imagen: 255 si pertenece a la línea 0 si no.
-    img.dilate(2) #Dilato por si el camino se cortó
+    #img.dilate(2) #Dilato por si el camino se cortó
 
     first_row = np.zeros(sensor.width(), dtype=np.uint8) #Aloco memoria para procesar
     for i in range(sensor.width()): #Obtengo la primer fila binarizada
@@ -122,7 +124,6 @@ def sendPrevMsg():
     uart.writechar(msg_buf[1])
     uart.writechar(0)
     uart.writechar(0) #Mando 4 bytes de info ya que la ciaa se interrumpe con 4*n bytes obtenidos
-    uart.flush();
     #print("D sent",msg_buf[0], "SecBuf Sent =",msg_buf[1])
     dirPin.low() #Ojo con esto, podría ir luego de un poco del procesamiento así no es bloqueante la uart
 
@@ -133,33 +134,34 @@ sensor.set_framesize(sensor.QQVGA)
 sensor.skip_frames(time = 2000)
 center_pixel = sensor.width() / 2
 
-state="Idle" #Se empieza en idle
-freq_sample=10 #Frecuencia de sampling
+state="Line follower" #Se empieza en idle
 fml = fork_merge_logic()
 fml.new_openMV_state(state) #Para la lógica de paso de uniones se comunica el estado del openMV
 
 
 '''########################  Loop principal ###########################'''
 start = utime.ticks_ms()
-
 while(True):
+    red_led.off()
     if (uart.any()):
+        clock.tick()
+        red_led.on()
         ciaaMsg=n_to_state[int(uart.readchar())] #Se le comunica el nuevo estado
         sendPrevMsg()
-        if(ciaaMsg != "Send data" ) #Si no es un send data, es un nuevo estado que le pone al openmv
+        if(ciaaMsg != "Send data" ): #Si no es un send data, es un nuevo estado que le pone al openmv
             state=ciaaMsg
             fml.new_openMV_state(state)
-        print("CIAA SAID: New state ->",state)
+        #print("CIAA SAID: New state ->",state)
         fork_or_merge_passed=0;
         img = sensor.snapshot() #Obtengo la imagen
         tag_found,tag_nmbr = find_tags() #Se busca si hay algún tag
         first_row = img_filter_and_get_first_row(img) #Obtengo la primer fila fitlrada y binarizada.
         d,lines_found,err = compute_simple_error(first_row) #Aplico el algoritmo para obtener el error y cantidad de lineas encontradas
         fml.feed(lines_found)
-        print("lines_found %d, fml state: %s" % (lines_found, fml.state))
+        #print("lines_found %d, fml state: %s" % (lines_found, fml.state))
         if fml.state=="Union passed":
             fml.clear_state()
             fork_or_merge_passed=1;
         gen_next_msg(msg_buf,d,err,tag_found,tag_nmbr,fork_or_merge_passed)
-        #print_args = (clock.fps(),d,tag_found,tag_nmbr,fork_or_merge_passed, err)
-        #print("FPS: %d, D: %d, tag: %r,tag n:%d, fomp: %r, err: %r" % print_args)
+        print_args = (d,tag_found,tag_nmbr,fork_or_merge_passed, err,clock.fps())
+        print("D: %d, tag: %r,tag n:%d, fomp: %r, err: %r, fps: %f" % print_args)

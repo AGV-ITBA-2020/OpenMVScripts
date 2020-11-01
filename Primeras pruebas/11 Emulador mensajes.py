@@ -34,33 +34,41 @@ sensor.set_framesize(sensor.QQVGA)
 sensor.skip_frames(time = 2000)
 center_pixel = sensor.width() / 2
 
-state="Idle" #Se empieza en idle
-freq_sample=10 #Frecuencia de sampling
-
-
+msg_buf=np.zeros(sensor.width(), dtype=np.int8) #Buffer en el que se guardan los msjs enviados por el openMV
+i=0;
 '''########################  Loop principal ###########################'''
+def parse_command(msgIn):
+    d=0;fork_or_merge_passed=0;tag_found=0;tag_nmbr=0; err=0;
+    if(msgIn[0]=='D'):
+        d = int(msgIn[2:])
+    elif((msgIn[0]=='F') or (msgIn[0]=='M')):
+        fork_or_merge_passed=1;
+    elif(msgIn[0]=='T'):
+        tag_found=1;
+        tag_nmbr=int(msgIn[2:])
+    else:
+        print("Wrong Format")
+    msg_buf[0]=d;
+    sec=err*128+fork_or_merge_passed*64 + tag_found*32 + tag_nmbr; #No funciona con shifts wtf
+    msg_buf[1]=sec; #tag_nmbr<32 para que no se interponga con los otros bits
+
 def sendMsg():
     dirPin.high()
-    uart.writechar(25) ##Envía el mensaje previo a la CIAA
-    uart.writechar(31)
+    uart.writechar(msg_buf[0]) ##Envía el mensaje previo a la CIAA
+    uart.writechar(msg_buf[1])
     uart.writechar(0)
     uart.writechar(0) #Mando 4 bytes de info ya que la ciaa se interrumpe con 4*n bytes obtenidos
-    #pyb.delay(10)
     dirPin.low() #Ojo con esto, podría ir luego de un poco del procesamiento así no es bloqueante la uart
 
 while(True):
-    if (uart.any()):
-        i=uart.readchar()
-        #print("CIAA SAID: New state ->",int())
-        #state=n_to_state[int(uart.readchar())] #Se le comunica el nuevo estado
-        #print("CIAA SAID: New state ->",state)
-        sendMsg()
-        img = sensor.snapshot() #Obtengo la imagen
-        green_led.on()
-        pyb.delay(10)
-        green_led.off()
-        pyb.delay(10)
-
-        #print("D sent",msg_buf[0], "SecBuf Sent =",msg_buf[1])
-
-        #Procesa la imagen para preparar el siguiente mensaje
+    msgIn = input();
+    while(uart.any()):
+        i=uart.readchar() ## Limpio buffer
+    print(msgIn)
+    if(len(msgIn)>=1):
+        parse_command(msgIn);
+        print("MB0: ", msg_buf[0]," MB1: ",msg_buf[1])
+        #while(not uart.any()): ##Cuando llega de la CIAA, le mando el msj que corresponde
+            #i=i+1
+        #i=uart.readchar()
+        #sendMsg()
