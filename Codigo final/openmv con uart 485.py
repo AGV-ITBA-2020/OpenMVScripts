@@ -6,18 +6,29 @@ from ulab import numerical
 import machine
 
 '''########################  Variables universales ###########################'''
-uart = UART(1, 115200,timeout=10000) ##UART que se utiliza con el baudrate dado y un timeout (este último realmente no hace falta
+sensor.reset()
+sensor.set_pixformat(sensor.GRAYSCALE)
+sensor.set_framesize(sensor.QQVGA)
+sensor.skip_frames(time = 500)
+center_pixel = sensor.width() / 2
+
+red_led=pyb.LED(1);
+red_led.on()
+uart = UART(1, 115200) ##UART que se utiliza con el baudrate dado y un timeout (este último realmente no hace falta
 msg_buf=np.zeros(sensor.width(), dtype=np.int8) #Buffer en el que se guardan los msjs enviados por el openMV
 state_to_n = {"Line follower":0,"Fork left":1,"Fork right":2,"Merge":3,"Error":4, "Idle":5 } #Estados del openMV y su mapeo a números, útil para las comunicaciones
 n_to_state= {0:"Line follower",1:"Fork left",2:"Fork right",3:"Merge",4:"Error", 5:"Idle", 10:"Send data" }
 tag_families = 0 | image.TAG36H11 # Familia de tags a identificar
-red_led=pyb.LED(1); # Led usado para checkar funcionamiento en tiempo real
+ # Led usado para checkar funcionamiento en tiempo real
 green_led=pyb.LED(2); # Led usado para mostrar que se ve el tag
 dirPin = pyb.Pin("P2", pyb.Pin.OUT_PP)
+clock = time.clock()
 dirPin.low();
+prevD=0;
 
+green_led.on()
 '''########################  Parámetros calibrables ###########################'''
-Th=80 ##Threshold
+Th=160 ##Threshold
 hist_len=6 #Cantidad de muestras a promediar para saber si se pasó una unión
 
 '''########################  Parámetros calibrables ###########################'''
@@ -55,7 +66,7 @@ def get_closer_line_center(line_centers,center_pixel):
     return line_centers[arg]
 
 #Dada la primer fila de pixeles y el estado del openmv, calcula el error y cantidad de líneas
-def compute_simple_error(first_row):
+def compute_simple_error(first_row,prevD):
     prev=0 # Asumo que fuera de la imagen no hay líneas
     d=0;
     err=0
@@ -84,6 +95,7 @@ def compute_simple_error(first_row):
             d = center_pixel - line_centers[-1] ##Línea de la derecha
         elif state == "Merge":
             d = center_pixel - get_closer_line_center(line_centers,center_pixel) ##En el merge tomo la línea con menor error, total convergen a la misma.
+        prevD=d;
     else:
         err=1;
         print("No se detectó línea")
@@ -110,12 +122,15 @@ def img_filter_and_get_first_row(img):
     #img.median(2, percentile=1) #Filtros de mediana para eliminar ruido y los apriltags de las mediciones.
     #img.median(2, percentile=1) #Reemplazan cada pixel por el pixel "más blanco" de su alrededor.
 
-    img.binary([(Th,255)],invert=True)#Binarizo la imagen: 255 si pertenece a la línea 0 si no.
+    img.binary([(Th,255)])#Binarizo la imagen: 255 si pertenece a la línea 0 si no.
     #img.dilate(2) #Dilato por si el camino se cortó
-
+    #img.erode(2)
+    #img.erode(1)
+    #img.erode()
     first_row = np.zeros(sensor.width(), dtype=np.uint8) #Aloco memoria para procesar
     for i in range(sensor.width()): #Obtengo la primer fila binarizada
-        first_row[i]=img.get_pixel(i,sensor.height()-1) #Obtengo la primer fila
+        first_row[i]=img.get_pixel(i,sensor.height()-40) #Obtengo la primer fila
+#first_row[i]=img.get_pixel(i,sensor.height()-1) #Obtengo la primer fila
     return first_row
 
 def sendPrevMsg():
@@ -128,11 +143,15 @@ def sendPrevMsg():
     dirPin.low() #Ojo con esto, podría ir luego de un poco del procesamiento así no es bloqueante la uart
 
 '''########################  Inicialización ###########################'''
-sensor.reset()
-sensor.set_pixformat(sensor.GRAYSCALE)
-sensor.set_framesize(sensor.QQVGA)
-sensor.skip_frames(time = 2000)
-center_pixel = sensor.width() / 2
+
+
+####Configs marcos
+#sensor.set_auto_gain(False,gain_db=0)
+#sensor.set_auto_whitebal(False)
+##sensor.set_gainceiling(128)
+#sensor.set_saturation(-3)
+#sensor.set_contrast(3)
+
 
 state="Line follower" #Se empieza en idle
 fml = fork_merge_logic()
@@ -142,6 +161,7 @@ fml.new_openMV_state(state) #Para la lógica de paso de uniones se comunica el e
 '''########################  Loop principal ###########################'''
 start = utime.ticks_ms()
 while(True):
+    green_led.toggle()
     red_led.off()
     if (uart.any()):
         clock.tick()
@@ -156,12 +176,14 @@ while(True):
         img = sensor.snapshot() #Obtengo la imagen
         tag_found,tag_nmbr = find_tags() #Se busca si hay algún tag
         first_row = img_filter_and_get_first_row(img) #Obtengo la primer fila fitlrada y binarizada.
-        d,lines_found,err = compute_simple_error(first_row) #Aplico el algoritmo para obtener el error y cantidad de lineas encontradas
+        d,lines_found,err = compute_simple_error(first_row,prevD) #Aplico el algoritmo para obtener el error y cantidad de lineas encontradas
+        if lines_found==0:
+            d=msg_buf[0];
         fml.feed(lines_found)
         #print("lines_found %d, fml state: %s" % (lines_found, fml.state))
         if fml.state=="Union passed":
             fml.clear_state()
             fork_or_merge_passed=1;
         gen_next_msg(msg_buf,d,err,tag_found,tag_nmbr,fork_or_merge_passed)
-        print_args = (d,tag_found,tag_nmbr,fork_or_merge_passed, err,clock.fps())
-        print("D: %d, tag: %r,tag n:%d, fomp: %r, err: %r, fps: %f" % print_args)
+        print_args = (d,tag_found,tag_nmbr,fork_or_merge_passed, err,clock.fps(),prevD)
+        print("D: %d, tag: %r,tag n:%d, fomp: %r, err: %r, fps: %f, %f" % print_args)

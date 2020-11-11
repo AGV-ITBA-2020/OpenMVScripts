@@ -68,7 +68,7 @@ while(True):
     if(len(msgIn)>=1):
         parse_command(msgIn);
         print("MB0: ", msg_buf[0]," MB1: ",msg_buf[1])
-        #while(not uart.any()): ##Cuando llega de la CIAA, le mando el msj que corresponde
-            #i=i+1
-        #i=uart.readchar()
-        #sendMsg()
+        while(not uart.any()): ##Cuando llega de la CIAA, le mando el msj que corresponde
+            i=i+1
+        i=uart.readchar()
+        sendMsg()
