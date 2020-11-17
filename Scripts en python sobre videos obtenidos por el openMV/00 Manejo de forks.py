@@ -32,7 +32,7 @@ def simple_distance_error(img, case):
         d = line_centers[np.argmin(abs(center_pixel - line_centers[0]))]
 
     return d;
-cap = cv2.VideoCapture('Videos/Fork 640x480.mp4')
+cap = cv2.VideoCapture('../Videos seguimiento camino/Piso ideal Fork 640x480.mp4')
 
 orig_frames=[];
 while cap.isOpened():
