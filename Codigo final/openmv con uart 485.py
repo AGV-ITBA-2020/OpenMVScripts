@@ -7,7 +7,7 @@ import machine
 
 '''########################  Variables universales ###########################'''
 sensor.reset()
-sensor.set_pixformat(sensor.GRAYSCALE)
+sensor.set_pixformat(sensor.RGB565)
 sensor.set_framesize(sensor.QQVGA)
 sensor.skip_frames(time = 500)
 center_pixel = sensor.width() / 2
@@ -104,32 +104,27 @@ def compute_simple_error(first_row,prevD):
 
 #Encuentra un april tag en la cámara (Si hay más de uno es un error)
 def find_tags():
-    tags = img.find_apriltags(families=tag_families) #Busco tags
+    #tags = 0;
+    #tags = img.find_apriltags(families=tag_families) #Busco tags
     tag_nmbr=0;
     tag_found=False;
-    if tags:
-        tag_found=True;
-        tag_nmbr=tags[0].id()
-        green_led.on() #Prendo led si hay tag a la vista
-    else:
-        green_led.off()
+    #if tags:
+        #tag_found=True;
+        #tag_nmbr=tags[0].id()
+        #green_led.on() #Prendo led si hay tag a la vista
+    #else:
+        #green_led.off()
     return tag_found,tag_nmbr;
 
 #Filtra la imagen y devuelve la primer fila binarizada.
 def img_filter_and_get_first_row(img):
-    #img.binary([(180,255)], invert=False, zero=True) ##Elimino reflexiones en las cintas
-
-    #img.median(2, percentile=1) #Filtros de mediana para eliminar ruido y los apriltags de las mediciones.
-    #img.median(2, percentile=1) #Reemplazan cada pixel por el pixel "más blanco" de su alrededor.
-
-    img.binary([(Th,255)])#Binarizo la imagen: 255 si pertenece a la línea 0 si no.
-    #img.dilate(2) #Dilato por si el camino se cortó
-    #img.erode(2)
-    #img.erode(1)
-    #img.erode()
+    green_threshold = (11, 94, -88, -28, -52, 125) # L A B
+    img.binary([green_threshold])
+    img.erode(1)
+    img.dilate(2)
     first_row = np.zeros(sensor.width(), dtype=np.uint8) #Aloco memoria para procesar
     for i in range(sensor.width()): #Obtengo la primer fila binarizada
-        first_row[i]=img.get_pixel(i,sensor.height()-40) #Obtengo la primer fila
+        first_row[i]=img.get_pixel(i,sensor.height()-10)[0] #Obtengo la primer fila
 #first_row[i]=img.get_pixel(i,sensor.height()-1) #Obtengo la primer fila
     return first_row
 
@@ -157,6 +152,7 @@ state="Line follower" #Se empieza en idle
 fml = fork_merge_logic()
 fml.new_openMV_state(state) #Para la lógica de paso de uniones se comunica el estado del openMV
 
+Accumulate_error=True;
 
 '''########################  Loop principal ###########################'''
 start = utime.ticks_ms()
@@ -173,12 +169,20 @@ while(True):
             fml.new_openMV_state(state)
         #print("CIAA SAID: New state ->",state)
         fork_or_merge_passed=0;
-        img = sensor.snapshot() #Obtengo la imagen
+        img = sensor.snapshot().histeq() #Obtengo la imagen
         tag_found,tag_nmbr = find_tags() #Se busca si hay algún tag
         first_row = img_filter_and_get_first_row(img) #Obtengo la primer fila fitlrada y binarizada.
         d,lines_found,err = compute_simple_error(first_row,prevD) #Aplico el algoritmo para obtener el error y cantidad de lineas encontradas
+        #d=-d
         if lines_found==0:
             d=msg_buf[0];
+            if Accumulate_error:
+                if d<0 and d > -122:
+                    d=d-5
+                if d>0 and d < 121:
+                    d=d+5
+
+
         fml.feed(lines_found)
         #print("lines_found %d, fml state: %s" % (lines_found, fml.state))
         if fml.state=="Union passed":
