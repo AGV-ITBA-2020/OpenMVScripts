@@ -41,7 +41,7 @@ for i in range(len(orig_frames)):
     proc_frame = cv2.cvtColor(proc_frames[i], cv2.COLOR_BGR2GRAY) #Paso a greyscale
     proc_frame= cv2.equalizeHist(proc_frame)                #Eq Hist para mayor contraste
     #proc_frame = applyKernelMode1(proc_frame)
-    proc_frame = applyKernelMode1(proc_frame)
+    proc_frame = applyKernelMode2(proc_frame)
     proc_frames[i] = cv2.cvtColor(proc_frame,cv2.COLOR_GRAY2BGR)
 for i in range(len(orig_frames)):
     #concat=cv2.hconcat(orig_frames[i],proc_frames[i]) #No entiendo por qué estalla, antes no lo hacía

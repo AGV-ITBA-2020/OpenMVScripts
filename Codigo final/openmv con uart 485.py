@@ -29,7 +29,7 @@ prevD=0;
 green_led.on()
 '''########################  Parámetros calibrables ###########################'''
 Th=160 ##Threshold
-hist_len=6 #Cantidad de muestras a promediar para saber si se pasó una unión
+hist_len=3 #Cantidad de muestras a promediar para saber si se pasó una unión
 
 '''########################  Parámetros calibrables ###########################'''
 class fork_merge_logic: ##Clase para manejar la lógica si pasó por un camino o no
@@ -118,8 +118,11 @@ def find_tags():
 
 #Filtra la imagen y devuelve la primer fila binarizada.
 def img_filter_and_get_first_row(img):
-    green_threshold = (11, 94, -88, -28, -52, 125) # L A B
-    img.binary([green_threshold])
+    #green_threshold = (0, 100, -128, -32, -128, 127) ##TH de día
+    blue_threshold = (0,100,   -128,127,   -128,-30) # L A B #TH de noche
+    img.histeq()
+    img.lens_corr(1.8)
+    img.binary([blue_threshold])
     img.erode(1)
     img.dilate(2)
     first_row = np.zeros(sensor.width(), dtype=np.uint8) #Aloco memoria para procesar
@@ -162,11 +165,13 @@ while(True):
     if (uart.any()):
         clock.tick()
         red_led.on()
-        ciaaMsg=n_to_state[int(uart.readchar())] #Se le comunica el nuevo estado
-        sendPrevMsg()
-        if(ciaaMsg != "Send data" ): #Si no es un send data, es un nuevo estado que le pone al openmv
-            state=ciaaMsg
-            fml.new_openMV_state(state)
+        recVal=uart.readchar()
+        if (recVal >=0 and recVal <=5) or recVal==10:
+            ciaaMsg=n_to_state[int(recVal)] #Se le comunica el nuevo estado
+            sendPrevMsg()
+            if(ciaaMsg != "Send data" ): #Si no es un send data, es un nuevo estado que le pone al openmv
+                state=ciaaMsg
+                fml.new_openMV_state(state)
         #print("CIAA SAID: New state ->",state)
         fork_or_merge_passed=0;
         img = sensor.snapshot().histeq() #Obtengo la imagen
@@ -189,5 +194,7 @@ while(True):
             fml.clear_state()
             fork_or_merge_passed=1;
         gen_next_msg(msg_buf,d,err,tag_found,tag_nmbr,fork_or_merge_passed)
-        print_args = (d,tag_found,tag_nmbr,fork_or_merge_passed, err,clock.fps(),prevD)
-        print("D: %d, tag: %r,tag n:%d, fomp: %r, err: %r, fps: %f, %f" % print_args)
+        #print_args = (d,tag_found,tag_nmbr,fork_or_merge_passed, err,clock.fps(),prevD)
+        #print("D: %d, tag: %r,tag n:%d, fomp: %r, err: %r, fps: %f, %f" % print_args)
+        print_args = (d,state,fml.state,fork_or_merge_passed,clock.fps())
+        print("D: %d state: %s,fml state: %s,fomp: %r, fps: %f" % print_args)
