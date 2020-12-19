@@ -19,14 +19,14 @@ tag_families = 0 | image.TAG36H11 # Familia de tags a identificar
 
 while(True):
     clock.tick()
-    img = sensor.snapshot()
+    img = sensor.snapshot().histeq()
     #img = sensor.snapshot().histeq()
     #copyImg = img.copy();
     #img.lens_corr(1.8)
     ##img = image.rgb_to_lab(img)
     ##th = img.histogram().get_threshold()
     ##print(th)
-    ##img.binary([blue_threshold])
+    img.binary([green_threshold])
     ##img = sensor.snapshot().histeq()
     ##for tag in img.find_apriltags(families=tag_families): # defaults to TAG36H11 without "families".
         ##print_args = (tag.id(), (180 * tag.rotation()) / 3.1415)

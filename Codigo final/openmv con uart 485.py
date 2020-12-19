@@ -118,11 +118,11 @@ def find_tags():
 
 #Filtra la imagen y devuelve la primer fila binarizada.
 def img_filter_and_get_first_row(img):
-    #green_threshold = (0, 100, -128, -32, -128, 127) ##TH de día
+    green_threshold = (0, 100, -128, -32, -128, 127) ##TH de día
     blue_threshold = (0,100,   -128,127,   -128,-30) # L A B #TH de noche
     img.histeq()
     img.lens_corr(1.8)
-    img.binary([blue_threshold])
+    img.binary([green_threshold])
     img.erode(1)
     img.dilate(2)
     first_row = np.zeros(sensor.width(), dtype=np.uint8) #Aloco memoria para procesar
