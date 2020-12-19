@@ -23,10 +23,20 @@ def simpleColorPattern(greenThImg): ##Este método binariza y toma solo cuando h
         for w in range(sensor.width()): #Obtengo la primer fila binarizada
             blue_row[w]=blueThImg.get_pixel(w,h)[0]#Obtengo la primer fila
             green_row[w]=greenThImg.get_pixel(w,h)[0]#Obtengo la primer fila
-        greenThImg.clear();
-        for w in range(n_pix,sensor.width()-n_pix):
-            if(green_row[w-2] and green_row[w-1] and blue_row[w+1] and blue_row[w+2]):
-                greenThImg.set_pixel(w,h,[255, 255, 255])
+        for w in range(sensor.width()):
+            if(w>=n_pix and w <sensor.width()-n_pix):
+                count=0;
+                for n in range(n_pix):
+                    if(green_row[w-n-1]):
+                        count+=1;
+                    if(blue_row[w+n+1]):
+                        count+=1;
+                if(count >= n_pix+1):
+                    greenThImg.set_pixel(w,h,[255, 255, 255])
+                else:
+                    greenThImg.set_pixel(w,h,[0, 0, 0])
+            else:
+                greenThImg.set_pixel(w,h,[0, 0, 0])
 
 while(True):
     clock.tick()
