@@ -127,7 +127,7 @@ def img_filter_and_get_first_row(img):
     img.dilate(2)
     first_row = np.zeros(sensor.width(), dtype=np.uint8) #Aloco memoria para procesar
     for i in range(sensor.width()): #Obtengo la primer fila binarizada
-        first_row[i]=img.get_pixel(i,sensor.height()-10)[0] #Obtengo la primer fila
+        first_row[i]=img.get_pixel(i,sensor.height()-30)[0] #Obtengo la primer fila
 #first_row[i]=img.get_pixel(i,sensor.height()-1) #Obtengo la primer fila
     return first_row
 

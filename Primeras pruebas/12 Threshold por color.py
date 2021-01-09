@@ -12,8 +12,8 @@ sensor.skip_frames(time = 2000)
 clock = time.clock()
 
 # Use the Tools -> Machine Vision -> Threshold Edtor to pick better thresholds.
-green_threshold = (0, 96, -92, -51, -28, 47) # L A B
-blue_threshold = (0,100,   -128,127,   -128,-30) # L A B
+green_threshold = (0, 100, -128, -30, -128, 127) ##TH de día
+blue_threshold = (0,100,   -128,127,   -128,-45) # L A B #TH de noche
 
 min_degree = 0
 max_degree = 179
@@ -21,7 +21,8 @@ max_degree = 179
 while(True):
     clock.tick()
     img = sensor.snapshot().histeq()
-    img.binary([blue_threshold])
+    img.lens_corr(1.8)
+    img.binary([green_threshold])
     #l=img.find_lines(roi =[80,100,80,40],threshold = 1000)
     #maxMag=0;
     #for i in range(len(l)):
