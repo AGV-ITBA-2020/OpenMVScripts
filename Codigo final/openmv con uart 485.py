@@ -114,10 +114,50 @@ def find_tags():
     else:
         green_led.off()
     return tag_found,tag_nmbr;
-
-
+############Diferencia de color para procesamiento #############
+def fast_line_detect(greenThImg): ##Este método binariza y toma solo cuando hay patrón de ambas imágenes
+    greenThImg.histeq()
+    greenThImg.lens_corr(1.8)
+    row_2_analyze=sensor.height()-10
+    blueThImg=greenThImg.copy()#(sensor.width()/2,row_2_analyze,sensor.width(),sensor.height())
+    n_pix=1 #numero de pixeles para tomar en cuenta de cada color
+    dist_entre_colores=1# Esta es la diferencia de pixeles para evitar la zona enel medio que se juntan los colores
+    green_threshold = (0, 100, -128, -30, -128, 127) ##TH de día
+    blue_threshold = (0,100,   -128,127,   -128,-20) # L A B #TH de noche
+    blueThImg.binary([blue_threshold])
+    blueThImg.dilate(2)
+    greenThImg.binary([green_threshold])
+    greenThImg.dilate(2)
+    blue_row = np.zeros(sensor.width(), dtype=np.uint8) #Aloco memoria para procesar
+    green_row = np.zeros(sensor.width(), dtype=np.uint8) #Aloco memoria para procesar
+    output_row = np.zeros(sensor.width(), dtype=np.uint8) #Aloco memoria para procesar
+    for w in range(sensor.width()):
+        blue_row[w]=blueThImg.get_pixel(w,row_2_analyze)[0]
+        green_row[w]=greenThImg.get_pixel(w,row_2_analyze)[0]
+    for w in range(sensor.width()):
+        if(w>=n_pix+dist_entre_colores and w <sensor.width()-n_pix-dist_entre_colores):
+            count=0;
+            for n in range(n_pix):
+                if(green_row[w-n-1-dist_entre_colores]):
+                    count+=1;
+                if(blue_row[w+n+1+dist_entre_colores]):
+                    count+=1;
+            if(count >= n_pix+1):
+                output_row[w]= 255
+            else:
+                output_row[w]= 0
+        else:
+            output_row[w]= 0
+    n_to_paint=6;
+    greenThImg.clear()
+    for w in range(sensor.width()):
+        if output_row[w]==255:
+            for i in range(n_to_paint):
+                greenThImg.set_pixel(w,i-int(n_to_paint/2)+row_2_analyze,[255, 255, 255])
+    return output_row
 #Filtra la imagen y devuelve la primer fila binarizada.
 def img_filter_and_get_first_row(img):
+    #return fast_line_detect(img) # Para hacerlo con procesamiento de colores distintos en el camino
     green_threshold = (0, 100, -128, -32, -128, 127) ##TH de día
     blue_threshold = (0,100,   -128,127,   -128,-30) # L A B #TH de noche
     img.histeq()
@@ -130,6 +170,7 @@ def img_filter_and_get_first_row(img):
         first_row[i]=img.get_pixel(i,sensor.height()-30)[0] #Obtengo la primer fila
 #first_row[i]=img.get_pixel(i,sensor.height()-1) #Obtengo la primer fila
     return first_row
+
 
 def sendPrevMsg():
     dirPin.high()
@@ -193,6 +234,11 @@ while(True):
         if fml.state=="Union passed":
             fml.clear_state()
             fork_or_merge_passed=1;
+        #Para detectar pérdida de línea
+        if lines_found == 0:
+            err=1;
+        else:
+            err=0;
         gen_next_msg(msg_buf,d,err,tag_found,tag_nmbr,fork_or_merge_passed)
         #print_args = (d,tag_found,tag_nmbr,fork_or_merge_passed, err,clock.fps(),prevD)
         #print("D: %d, tag: %r,tag n:%d, fomp: %r, err: %r, fps: %f, %f" % print_args)
