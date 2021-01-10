@@ -29,7 +29,7 @@ prevD=0;
 green_led.on()
 '''########################  Parámetros calibrables ###########################'''
 Th=160 ##Threshold
-hist_len=3 #Cantidad de muestras a promediar para saber si se pasó una unión
+hist_len=8 #Cantidad de muestras a promediar para saber si se pasó una unión
 
 '''########################  Parámetros calibrables ###########################'''
 class fork_merge_logic: ##Clase para manejar la lógica si pasó por un camino o no
@@ -44,12 +44,13 @@ class fork_merge_logic: ##Clase para manejar la lógica si pasó por un camino o
         self.state="Idle"
     def feed(self,n_lines):
         #print(self.n_lines_hist)
-        self.n_lines_hist.pop(0)
-        self.n_lines_hist.append(n_lines)
-        if self.state=="Before union" and all(x >= 2 for x in self.n_lines_hist): #Si vio 2 líneas en las últimas mediciones identifica que está en la union
-            self.state = "During union"
-        elif self.state=="During union" and all(x == 1 for x in self.n_lines_hist): ##Si estaba en la unión y ahora solo ve 1 líne significa que ya la pasó
-            self.state = "Union passed"
+        if not (self.state == "Idle"):
+            self.n_lines_hist.pop(0)
+            self.n_lines_hist.append(n_lines)
+            if self.state=="Before union" and all(x >= 2 for x in self.n_lines_hist): #Si vio 2 líneas en las últimas mediciones identifica que está en la union
+                self.state = "During union"
+            elif self.state=="During union" and all(x == 1 for x in self.n_lines_hist): ##Si estaba en la unión y ahora solo ve 1 líne significa que ya la pasó
+                self.state = "Union passed"
 
 '''########################  Funciones ###########################'''
 #Con los datos a transmitir genera el buffer a enviar a uart
@@ -118,12 +119,12 @@ def find_tags():
 def fast_line_detect(greenThImg): ##Este método binariza y toma solo cuando hay patrón de ambas imágenes
     greenThImg.histeq()
     greenThImg.lens_corr(1.8)
-    row_2_analyze=sensor.height()-10
+    row_2_analyze=sensor.height()-30
     blueThImg=greenThImg.copy()#(sensor.width()/2,row_2_analyze,sensor.width(),sensor.height())
     n_pix=1 #numero de pixeles para tomar en cuenta de cada color
-    dist_entre_colores=1# Esta es la diferencia de pixeles para evitar la zona enel medio que se juntan los colores
-    green_threshold = (0, 100, -128, -30, -128, 127) ##TH de día
-    blue_threshold = (0,100,   -128,127,   -128,-20) # L A B #TH de noche
+    dist_entre_colores=2# Esta es la diferencia de pixeles para evitar la zona enel medio que se juntan los colores
+    green_threshold = (0, 100, -128, -32, -128, 127) ##TH de día
+    blue_threshold = (0,100,   -128,127,   -128,-35) # L A B #TH de noche
     blueThImg.binary([blue_threshold])
     blueThImg.dilate(2)
     greenThImg.binary([green_threshold])
@@ -158,16 +159,16 @@ def fast_line_detect(greenThImg): ##Este método binariza y toma solo cuando hay
 #Filtra la imagen y devuelve la primer fila binarizada.
 def img_filter_and_get_first_row(img):
     #return fast_line_detect(img) # Para hacerlo con procesamiento de colores distintos en el camino
-    green_threshold = (0, 100, -128, -32, -128, 127) ##TH de día
-    blue_threshold = (0,100,   -128,127,   -128,-30) # L A B #TH de noche
+    green_threshold = (0, 100, -128, -40, -128, 127) ##TH de día
+    blue_threshold = (0,100,   -128,127,   -128,-20) # L A B #TH de noche
     img.histeq()
     img.lens_corr(1.8)
     img.binary([green_threshold])
-    img.erode(1)
+    #img.erode(1)
     img.dilate(2)
     first_row = np.zeros(sensor.width(), dtype=np.uint8) #Aloco memoria para procesar
     for i in range(sensor.width()): #Obtengo la primer fila binarizada
-        first_row[i]=img.get_pixel(i,sensor.height()-30)[0] #Obtengo la primer fila
+        first_row[i]=img.get_pixel(i,sensor.height()-30)[0] #Obtengo la primer fila-30 anda bn
 #first_row[i]=img.get_pixel(i,sensor.height()-1) #Obtengo la primer fila
     return first_row
 
@@ -178,8 +179,8 @@ def sendPrevMsg():
     uart.writechar(msg_buf[1])
     uart.writechar(0)
     uart.writechar(0) #Mando 4 bytes de info ya que la ciaa se interrumpe con 4*n bytes obtenidos
-    #print("D sent",msg_buf[0], "SecBuf Sent =",msg_buf[1])
-    dirPin.low() #Ojo con esto, podría ir luego de un poco del procesamiento así no es bloqueante la uart
+    print("D sent",msg_buf[0], "SecBuf Sent =",msg_buf[1])
+
 
 '''########################  Inicialización ###########################'''
 
@@ -201,11 +202,11 @@ Accumulate_error=True;
 '''########################  Loop principal ###########################'''
 start = utime.ticks_ms()
 while(True):
-    green_led.toggle()
-    red_led.off()
+    #green_led.toggle()
+
     if (uart.any()):
         clock.tick()
-        red_led.on()
+
         recVal=uart.readchar()
         if (recVal >=0 and recVal <=5) or recVal==10:
             ciaaMsg=n_to_state[int(recVal)] #Se le comunica el nuevo estado
@@ -217,17 +218,21 @@ while(True):
         fork_or_merge_passed=0;
         img = sensor.snapshot().histeq() #Obtengo la imagen
         tag_found,tag_nmbr = find_tags() #Se busca si hay algún tag
+
+
         first_row = img_filter_and_get_first_row(img) #Obtengo la primer fila fitlrada y binarizada.
         d,lines_found,err = compute_simple_error(first_row,prevD) #Aplico el algoritmo para obtener el error y cantidad de lineas encontradas
         #d=-d
         if lines_found==0:
+            red_led.on()
             d=msg_buf[0];
             if Accumulate_error:
-                if d<0 and d > -122:
+                if d<-30 and d > -122:
                     d=d-5
-                if d>0 and d < 121:
+                if d>30 and d < 121:
                     d=d+5
-
+        else:
+            red_led.off()
 
         fml.feed(lines_found)
         #print("lines_found %d, fml state: %s" % (lines_found, fml.state))
@@ -240,7 +245,8 @@ while(True):
         else:
             err=0;
         gen_next_msg(msg_buf,d,err,tag_found,tag_nmbr,fork_or_merge_passed)
+        dirPin.low() #Ojo con esto, podría ir luego de un poco del procesamiento así no es bloqueante la uart
         #print_args = (d,tag_found,tag_nmbr,fork_or_merge_passed, err,clock.fps(),prevD)
         #print("D: %d, tag: %r,tag n:%d, fomp: %r, err: %r, fps: %f, %f" % print_args)
-        print_args = (d,state,fml.state,fork_or_merge_passed,clock.fps())
-        print("D: %d state: %s,fml state: %s,fomp: %r, fps: %f" % print_args)
+        #print_args = (d,state,fml.state,fork_or_merge_passed,clock.fps())
+        #print("D: %d state: %s,fml state: %s,fomp: %r, fps: %f" % print_args)

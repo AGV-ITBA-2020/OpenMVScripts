@@ -44,7 +44,7 @@ def fast_line_detect(greenThImg): ##Este método binariza y toma solo cuando hay
     n_pix=1 #numero de pixeles para tomar en cuenta de cada color
     dist_entre_colores=1# Esta es la diferencia de pixeles para evitar la zona enel medio que se juntan los colores
     green_threshold = (0, 100, -128, -30, -128, 127) ##TH de día
-    blue_threshold = (0,100,   -128,127,   -128,-20) # L A B #TH de noche
+    blue_threshold = (0,100,   -128,127,   -128,-35) # L A B #TH de noche
     blueThImg.binary([blue_threshold])
     blueThImg.dilate(2)
     greenThImg.binary([green_threshold])
